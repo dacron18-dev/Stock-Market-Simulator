@@ -1,0 +1,54 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+actor Trader
+actor Administrator
+actor "Simulation Clock" as Clock
+actor "Notification Service" as Notification
+
+rectangle "Stock Market Simulator System" {
+  usecase "Register Account" as UC1
+  usecase "Login" as UC2
+  usecase "View Market" as UC3
+  usecase "Place Buy Order" as UC4
+  usecase "Place Sell Order" as UC5
+  usecase "Validate Order" as UC6
+  usecase "Execute Order" as UC7
+  usecase "Cancel Order" as UC8
+  usecase "View Portfolio" as UC9
+  usecase "View Transaction History" as UC10
+  usecase "Set Price Alert" as UC11
+  usecase "Advance Simulation Tick" as UC12
+  usecase "Generate Market Event" as UC13
+  usecase "Send Price Notification" as UC14
+  usecase "Configure Simulation" as UC15
+  usecase "Reset Simulation" as UC16
+}
+
+Trader --> UC1
+Trader --> UC2
+Trader --> UC3
+Trader --> UC4
+Trader --> UC5
+Trader --> UC8
+Trader --> UC9
+Trader --> UC10
+Trader --> UC11
+
+Administrator --> UC15
+Administrator --> UC16
+
+Clock --> UC12
+Notification --> UC14
+
+UC4 ..> UC6 : <<include>>
+UC4 ..> UC7 : <<include>>
+UC5 ..> UC6 : <<include>>
+UC5 ..> UC7 : <<include>>
+
+UC13 ..> UC12 : <<extend>>
+[market event threshold reached]
+UC14 ..> UC12 : <<extend>>
+[alert price crossed]
+@enduml

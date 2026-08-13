@@ -1,0 +1,45 @@
+@startuml
+title Stock Market Simulator - Place Buy Order Sequence
+
+actor Trader
+participant "Trading Interface" as UI
+participant "Order Manager" as OM
+participant "Account" as Account
+participant "Portfolio" as Portfolio
+participant "Market" as Market
+participant "Transaction Manager" as TM
+
+Trader -> UI : Select stock and enter quantity
+UI -> Market : getCurrentPrice(symbol)
+Market --> UI : currentPrice
+
+Trader -> UI : Submit buy order
+UI -> OM : placeBuyOrder(trader, stock, quantity, price)
+
+OM -> Market : validateStock(stock)
+Market --> OM : stockValid
+
+OM -> Account : hasSufficientFunds(orderValue)
+Account --> OM : fundsAvailable
+
+alt Valid order
+    OM -> Account : deductCash(orderValue)
+    Account --> OM : cashDeducted
+
+    OM -> Portfolio : addHolding(stock, quantity, price)
+    Portfolio --> OM : holdingUpdated
+
+    OM -> TM : createTransaction(order)
+    TM --> OM : transactionCreated
+
+    OM --> UI : Order executed successfully
+    UI --> Trader : Display confirmation
+else Insufficient funds
+    OM --> UI : Reject order
+    UI --> Trader : Display insufficient funds
+else Invalid stock or quantity
+    OM --> UI : Reject order
+    UI --> Trader : Display validation error
+end
+
+@enduml
