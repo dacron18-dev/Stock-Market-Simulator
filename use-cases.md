@@ -1,4 +1,4 @@
-# Stock Market Simulator System — Use Case Specifications
+# Stock Market Simulator System (Use Case Specifications)
 
 ## Use Case 1: Place Buy Order
 
