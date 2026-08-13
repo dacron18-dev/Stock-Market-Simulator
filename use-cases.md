@@ -5,9 +5,9 @@
 **Primary Actor:** Trader
 
 **Stakeholders:**
-- Trader — wants to purchase stocks using virtual money.
-- Stock Market Simulator — must execute valid orders and maintain accurate balances.
-- Administrator — requires a consistent simulation state.
+- Trader wants to purchase stocks using virtual money.
+- Stock Market Simulator must execute valid orders and maintain accurate balances.
+- Administrator requires a consistent simulation state.
 
 **Preconditions:**
 1. The trader is logged in.
@@ -58,9 +58,9 @@ The trader submits a buy order for a stock.
 **Primary Actor:** Trader
 
 **Stakeholders:**
-- Trader — wants to sell shares and receive virtual cash.
-- Stock Market Simulator — must maintain accurate holdings and balances.
-- Administrator — requires consistent transaction records.
+- Trader wants to sell shares and receive virtual cash.
+- Stock Market Simulator must maintain accurate holdings and balances.
+- Administrator requires consistent transaction records.
 
 **Preconditions:**
 1. The trader is logged in.
@@ -111,9 +111,9 @@ The trader submits a sell order.
 **Primary Actor:** Simulation Clock
 
 **Stakeholders:**
-- Trader — expects stock prices and portfolio values to reflect the latest simulated market state.
-- Administrator — wants the simulation to progress according to configured parameters.
-- Stock Market Simulator — must maintain a consistent market state.
+- Trader expects stock prices and portfolio values to reflect the latest simulated market state.
+- Administrator wants the simulation to progress according to configured parameters.
+- Stock Market Simulator must maintain a consistent market state.
 
 **Preconditions:**
 1. The simulation has been started.
