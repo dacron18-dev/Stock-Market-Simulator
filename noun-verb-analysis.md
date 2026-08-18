@@ -1,234 +1,145 @@
-# Noun-Verb Analysis — Stock Market Simulator
+# Noun-Verb Analysis
 
-## 1. Purpose
+For the three specifications, the raw noun list was identified as follows.
 
-Noun-verb analysis is used to identify the important objects, classes, attributes, actions, and concepts in the Stock Market Simulator.
-
-The analysis is performed using the project requirements, problem statement, use cases, and existing system design.
-
----
-
-# 2. Raw Candidate Noun List
-
-The initial noun list identified from the specifications is:
-
-1. Trader
-2. Stock
-3. Order
-4. Buy Order
-5. Sell Order
-6. Quantity
-7. Price
-8. Cash
-9. Portfolio
-10. Holding
-11. Transaction
-12. Market
-13. Market Price
-14. Simulation
-15. Simulation Clock
-16. Simulation Tick
-17. Market Event
-18. Event Probability
-19. Market Parameter
-20. Price Alert
-21. Notification
-22. Notification Service
-23. Account
-24. Login
-25. Balance
-26. Transaction Value
-27. Market Statistics
-
----
-
-# 3. Verb Analysis
-
-The important actions identified from the specifications include:
-
-- Register trader
-- Store trader information
-- Login
-- Deposit money
-- Check cash balance
-- Deduct cash
-- Add stock
-- Find stock
-- Update stock price
-- Place buy order
-- Place sell order
-- Validate order
-- Execute order
-- Cancel order
-- Add holding
-- Remove holding
-- Increase holding quantity
-- Decrease holding quantity
-- Calculate portfolio value
-- Calculate holding value
-- Record transaction
-- Calculate transaction value
-- Start simulation
-- Stop simulation
-- Advance simulation tick
-- Generate market event
-- Process market event
-- Apply market event
-- Set price alert
-- Check price alert
-- Trigger notification
-- Mark notification as read
-
----
-
-# 4. Four Filters
-
-The candidate nouns are evaluated using four filters:
-
-1. Duplicate/Synonym Filter
-2. Attribute Filter
-3. Out-of-Scope Filter
-4. Implementation/UI Filter
-
----
-
-# 5. Filter 1 — Duplicate/Synonym Filter
-
-Some nouns represent the same concept and should not become separate classes.
-
-| Candidate | Decision | Reason |
-|---|---|---|
-| Buy Order | Merge | Represents an Order with type BUY |
-| Sell Order | Merge | Represents an Order with type SELL |
-| Cash | Merge | Represented by the Account balance |
-| Balance | Merge | Represented by Account cashBalance |
-| Market Price | Merge | Represented by Stock currentPrice |
-| Notification Service | Merge | Notification represents the required notification concept |
-| Simulation Clock | Merge | Represents the time/control mechanism of Simulation |
-| Simulation Tick | Merge | Represents an action/state within Simulation |
-| Transaction Value | Merge | Calculated by Transaction |
-| Event Probability | Merge | Can be represented as part of market-event behavior |
-| Market Parameter | Merge | Considered part of market/simulation data |
-
-After removing duplicates and synonyms, the important class candidates are:
+## 1. Raw Candidate List
 
 - Trader
 - Stock
 - Order
+- Buy Order
+- Sell Order
+- Quantity
+- Price
+- Cash
 - Portfolio
 - Holding
 - Transaction
 - Market
+- Market Price
 - Simulation
-- MarketEvent
-- PriceAlert
+- Simulation Clock
+- Simulation Tick
+- Market Event
+- Event Probability
+- Market Parameter
+- Price Alert
 - Notification
+- Notification Service
 - Account
+- Login
+- Balance
+- Transaction Value
+- Market Statistics
+- Notification Message
 
 ---
 
-# 6. Filter 2 — Attribute Filter
+## 2. Four Filters
 
-Some nouns are properties of other classes rather than independent classes.
+The following four filters are used to evaluate the candidate nouns:
 
-| Candidate | Belongs To | Decision |
-|---|---|---|
-| Quantity | Order / Holding / Transaction | Attribute |
-| Price | Stock / Order | Attribute |
-| Cash | Account | Attribute |
-| Market Price | Stock | Attribute |
-| Balance | Account | Attribute |
-| Transaction Value | Transaction | Calculated attribute |
-| Event Probability | MarketEvent / Simulation | Attribute or simulation parameter |
-| Simulation Clock | Simulation | Attribute/control information |
-| Simulation Tick | Simulation | Simulation operation/state |
-| Market Parameter | Market / Simulation | Attribute/parameter |
-| Market Statistics | Market | Derived information |
+### 2.1 Duplicate/Synonym Filter
 
-These concepts therefore do not need to become separate classes.
+Removes nouns that represent the same concept or concepts that can be represented as specializations of an existing class.
 
----
+### 2.2 Attribute Filter
 
-# 7. Filter 3 — Out-of-Scope Filter
+Removes nouns that represent properties of another class rather than independent classes.
 
-Some candidate nouns are not required as independent domain classes for the Stock Market Simulator.
+### 2.3 Out-of-Scope Filter
 
-| Candidate | Decision | Reason |
-|---|---|---|
-| Login | Remove as independent class | Authentication/interface functionality rather than a core trading-domain object |
-| Market Statistics | Remove as independent class | Can be calculated from Market and Stock information |
-| Event Probability | Remove as independent class | Can be represented as part of market-event behavior |
-| Market Parameter | Remove as independent class | Can be represented as data used by Market or Simulation |
+Removes concepts that are outside the responsibility and scope of the Stock Market Simulator.
+
+### 2.4 Implementation/UI Filter
+
+Removes concepts that are merely implementation details, interface elements, or operations rather than domain classes.
 
 ---
 
-# 8. Filter 4 — Implementation/UI Filter
+## 3. Applying the Filters
 
-Some concepts are implementation or interface details rather than core domain classes.
-
-| Candidate | Decision | Reason |
-|---|---|---|
-| Notification Service | Remove as independent class | Service implementation detail |
-| Login | Remove as independent class | User-interface/authentication functionality |
-| Simulation Clock | Remove as independent class | Implementation/control detail of Simulation |
-| Simulation Tick | Remove as independent class | Operation/state within Simulation |
+| Candidate | Filter | Decision | Reason |
+|---|---|---|---|
+| Trader | — | **Survivor** | Independent system actor/domain entity |
+| Stock | — | **Survivor** | Core domain entity |
+| Order | — | **Survivor** | Core domain entity |
+| Buy Order | Duplicate/Specialization | **Removed** | Model as an Order type rather than a separate class |
+| Sell Order | Duplicate/Specialization | **Removed** | Model as an Order type rather than a separate class |
+| Quantity | Attribute | **Removed** | Property of Order/Holding |
+| Price | Attribute | **Removed** | Property of Stock/Order |
+| Cash | Attribute | **Removed** | Part of Account |
+| Portfolio | — | **Survivor** | Core domain entity |
+| Holding | — | **Survivor** | Connects Portfolio and Stock |
+| Transaction | — | **Survivor** | Records executed trade |
+| Market | — | **Survivor** | Core domain concept |
+| Market Price | Duplicate | **Removed** | Represented by Stock.currentPrice |
+| Simulation | — | **Survivor** | Controls the simulation |
+| Simulation Clock | Implementation/External | **Removed** | Can be represented through simulation time |
+| Simulation Tick | Attribute/Event | **Removed** | Represents an operation/event rather than a core class |
+| Market Event | — | **Survivor** | Represents simulated market events |
+| Event Probability | Attribute | **Removed** | Property of Simulation/MarketEvent |
+| Market Parameter | Attribute | **Removed** | Property/configuration of Simulation |
+| Price Alert | — | **Survivor** | User-defined domain object |
+| Notification | — | **Survivor** | Represents a generated notification |
+| Notification Service | External | **Removed** | External service/implementation detail |
+| Account | — | **Survivor** | Represents the trader's virtual-money account |
+| Login | Implementation/UI | **Removed** | Authentication operation rather than a domain entity |
+| Balance | Attribute | **Removed** | Property of Account |
+| Transaction Value | Attribute | **Removed** | Calculated property of a Transaction |
+| Market Statistics | Attribute/Derived | **Removed** | Can be calculated from Market data |
+| Notification Message | Attribute | **Removed** | Property of Notification |
 
 ---
 
-# 9. Final Candidate Classes
+## 4. Surviving Classes
 
-After applying all four filters, the final candidate classes are:
+After applying the four filters, the following classes remain:
 
-1. Trader
-2. Account
-3. Stock
-4. Market
-5. Order
-6. Portfolio
-7. Holding
-8. Transaction
-9. Simulation
-10. MarketEvent
-11. PriceAlert
-12. Notification
-
-These classes form the main conceptual model of the Stock Market Simulator.
+1. **Trader**
+2. **Account**
+3. **Stock**
+4. **Market**
+5. **Order**
+6. **Portfolio**
+7. **Holding**
+8. **Transaction**
+9. **Simulation**
+10. **MarketEvent**
+11. **PriceAlert**
+12. **Notification**
 
 ---
 
-# 10. Final Class Responsibilities
+## 5. Class Summary
 
-| Class | Main Responsibility |
+| Class | Description |
 |---|---|
-| Trader | Represents the user/trader and initiates trading activities |
-| Account | Manages the trader's available cash |
-| Stock | Represents a tradable stock and maintains its price information |
-| Market | Maintains available stocks and market state |
-| Order | Represents and manages buy/sell requests |
-| Portfolio | Maintains the trader's collection of holdings |
-| Holding | Represents ownership of a quantity of a particular stock |
-| Transaction | Records completed trades |
-| Simulation | Controls the simulated passage of time and market activity |
-| MarketEvent | Represents events that affect stock prices |
-| PriceAlert | Monitors a stock for a target price |
-| Notification | Provides information to the trader about relevant events |
+| **Trader** | Represents the user who interacts with the stock market simulator |
+| **Account** | Manages the trader's virtual money and balance |
+| **Stock** | Represents a tradable stock and its current market information |
+| **Market** | Represents the simulated stock market |
+| **Order** | Represents a request to buy or sell a stock |
+| **Portfolio** | Represents the trader's collection of investments |
+| **Holding** | Represents the quantity of a particular stock owned by the trader |
+| **Transaction** | Records an executed trade |
+| **Simulation** | Controls the overall simulated market environment |
+| **MarketEvent** | Represents events that can affect market conditions or prices |
+| **PriceAlert** | Represents a trader-defined condition for receiving an alert |
+| **Notification** | Represents an alert or message generated by the system |
 
 ---
 
-# 11. Final Result
+## 6. Conclusion
 
-The noun-verb analysis results in the following core classes:
+The noun-verb analysis resulted in **12 surviving domain classes** for the Stock Market Simulator.
 
-```text
-Trader
-Account
-Stock
-Market
-Order
-Portfolio
-Holding
-Transaction
-Simulation
-MarketEvent
-PriceAlert
-Notification
+These classes represent the major entities involved in trading, account management, portfolio management, market activity, simulation events, price alerts, and notifications.
+
+The identified classes will be used for the next stages of the system analysis:
+
+- CRC Card preparation
+- Identification of attributes and operations
+- Identification of class relationships
+- Identification of multiplicities
+- Domain class diagram development
