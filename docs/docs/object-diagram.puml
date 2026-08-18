@@ -1,0 +1,57 @@
+@startuml
+
+object "rahul : Trader" as trader {
+    traderId = 101
+    name = "Rahul"
+    email = "rahul@example.com"
+}
+
+object "account : Account" as account {
+    accountId = 501
+    cashBalance = 25000.00
+}
+
+object "portfolio : Portfolio" as portfolio {
+    portfolioId = 701
+    totalValue = 37500.00
+}
+
+object "reliance : Stock" as stock {
+    symbol = "RELIANCE"
+    companyName = "Reliance Industries"
+    currentPrice = 2500.00
+    previousPrice = 2475.00
+}
+
+object "holding : Holding" as holding {
+    quantity = 15
+    averagePrice = 2400.00
+}
+
+object "order : Order" as order {
+    orderId = 9001
+    type = BUY
+    quantity = 10
+    price = 2500.00
+    status = EXECUTED
+}
+
+object "transaction : Transaction" as transaction {
+    transactionId = 12001
+    type = BUY
+    quantity = 10
+    executionPrice = 2500.00
+}
+
+trader -- account
+trader -- portfolio
+portfolio -- holding
+holding -- stock
+
+trader -- order
+order -- stock
+order -- account
+order -- portfolio
+order -- transaction
+
+@enduml
