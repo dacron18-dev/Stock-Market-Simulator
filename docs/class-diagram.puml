@@ -1,0 +1,149 @@
+@startuml
+
+skinparam classAttributeIconSize 0
+
+class Trader {
+    - traderId : int
+    - name : String
+    - email : String
+    + placeBuyOrder(stock : Stock, quantity : int) : Order
+    + placeSellOrder(stock : Stock, quantity : int) : Order
+    + viewPortfolio() : Portfolio
+    + setPriceAlert(stock : Stock, price : double) : PriceAlert
+}
+
+class Account {
+    - accountId : int
+    - cashBalance : double
+    + deposit(amount : double) : void
+    + deductCash(amount : double) : boolean
+    + hasSufficientCash(amount : double) : boolean
+}
+
+class Stock {
+    - symbol : String
+    - companyName : String
+    - currentPrice : double
+    - previousPrice : double
+    + updatePrice(newPrice : double) : void
+    + getPrice() : double
+}
+
+class Market {
+    - marketId : int
+    - name : String
+    - isOpen : boolean
+    + addStock(stock : Stock) : void
+    + getStock(symbol : String) : Stock
+    + updatePrices() : void
+    + processEvent(event : MarketEvent) : void
+}
+
+class Order {
+    - orderId : int
+    - type : OrderType
+    - quantity : int
+    - price : double
+    - status : OrderStatus
+    - timestamp : DateTime
+    + validate() : boolean
+    + execute() : Transaction
+    + cancel() : void
+}
+
+class Portfolio {
+    - portfolioId : int
+    - totalValue : double
+    + addHolding(holding : Holding) : void
+    + removeHolding(symbol : String, quantity : int) : void
+    + calculateValue() : double
+}
+
+class Holding {
+    - quantity : int
+    - averagePrice : double
+    + increaseQuantity(amount : int) : void
+    + decreaseQuantity(amount : int) : void
+    + calculateValue(currentPrice : double) : double
+}
+
+class Transaction {
+    - transactionId : int
+    - type : OrderType
+    - quantity : int
+    - executionPrice : double
+    - timestamp : DateTime
+    + getValue() : double
+}
+
+class Simulation {
+    - simulationId : int
+    - tickInterval : int
+    - running : boolean
+    + start() : void
+    + stop() : void
+    + advanceTick() : void
+    + generateMarketEvent() : MarketEvent
+}
+
+class MarketEvent {
+    - eventId : int
+    - eventType : String
+    - impactFactor : double
+    + apply(stock : Stock) : void
+}
+
+class PriceAlert {
+    - alertId : int
+    - targetPrice : double
+    - triggered : boolean
+    + check(currentPrice : double) : boolean
+}
+
+class Notification {
+    - notificationId : int
+    - message : String
+    - createdAt : DateTime
+    - read : boolean
+    + markAsRead() : void
+}
+
+enum OrderType {
+    BUY
+    SELL
+}
+
+enum OrderStatus {
+    PENDING
+    EXECUTED
+    CANCELLED
+    REJECTED
+}
+
+Trader "1" -- "1" Account
+Trader "1" -- "1" Portfolio
+
+Portfolio "1" *-- "0..*" Holding
+Holding "*" --> "1" Stock
+
+Market "1" o-- "1..*" Stock
+
+Trader "1" -- "0..*" Order
+Order "*" --> "1" Stock
+Order "*" --> "1" Account
+Order "*" --> "1" Portfolio
+
+Order "1" --> "0..1" Transaction
+Portfolio "1" -- "0..*" Transaction
+Account "1" -- "0..*" Transaction
+
+Simulation "1" --> "1" Market
+Simulation "1" --> "0..*" MarketEvent
+MarketEvent "*" --> "1..*" Stock
+
+Trader "1" -- "0..*" PriceAlert
+PriceAlert "*" --> "1" Stock
+PriceAlert "1" --> "0..*" Notification
+Trader "1" -- "0..*" Notification
+
+@enduml
