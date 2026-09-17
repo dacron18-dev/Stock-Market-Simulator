@@ -39,6 +39,68 @@ public:
     }
 };
 
+// MARKET CLASS
+// Maintains every stock available to trade, looks stocks up by
+// symbol, updates prices, and tracks whether trading is open.
+class Market {
+private:
+    vector<Stock> stocks;
+    bool marketOpen;
+
+public:
+    Market() : marketOpen(true) {}
+
+    void addStock(const Stock &s) {
+        stocks.push_back(s);
+    }
+
+    // Returns a pointer so the caller can update the actual stock
+    // stored in the market, not a copy of it. nullptr if not found.
+    Stock* findStock(const string &symbol) {
+        for (auto &s : stocks) {
+            if (s.getSymbol() == symbol) return &s;
+        }
+        return nullptr;
+    }
+
+    const vector<Stock>& getAllStocks() const {
+        return stocks;
+    }
+
+    bool updateStockPrice(const string &symbol, double newPrice) {
+        Stock* s = findStock(symbol);
+        if (!s) return false;
+        s->updatePrice(newPrice);
+        return true;
+    }
+
+    void openMarket() {
+        marketOpen = true;
+        cout << "\nMarket is now OPEN for trading.\n";
+    }
+
+    void closeMarket() {
+        marketOpen = false;
+        cout << "\nMarket is now CLOSED. Trading is paused.\n";
+    }
+
+    bool isOpen() const {
+        return marketOpen;
+    }
+
+    void displayMarket() const {
+        cout << "\nMARKET (" << (marketOpen ? "OPEN" : "CLOSED") << ")\n";
+        cout << left << setw(5) << "#" << setw(10) << "Symbol"
+             << setw(25) << "Company" << "Price" << endl;
+        cout << "\n";
+        int i = 1;
+        for (const auto &s : stocks) {
+            cout << left << setw(5) << i++;
+            s.displayStock();
+        }
+    }
+};
+
 // TRANSACTION CLASS
 // Records a single completed trade. Every buy/sell creates one
 // of these, which is stored in the trader's transaction history.
@@ -402,12 +464,13 @@ int main() {
     cout << "Your User ID is: " << trader.getUserID() << endl;
     Trader::showTraderCount();
 
-    // Market stock objects (will become a proper Market class in the next step)
-    Stock tcs("TCS", "Tata Consultancy Services", 3500);
-    Stock infy("INFY", "Infosys", 1800);
-    Stock reliance("RELIANCE", "Reliance Industries", 2900);
-    Stock hdfc("HDFC", "HDFC Bank", 1650);
-    Stock wipro("WIPRO", "Wipro Limited", 550);
+    // Market now owns every stock; nothing else holds a loose Stock variable.
+    Market market;
+    market.addStock(Stock("TCS", "Tata Consultancy Services", 3500));
+    market.addStock(Stock("INFY", "Infosys", 1800));
+    market.addStock(Stock("RELIANCE", "Reliance Industries", 2900));
+    market.addStock(Stock("HDFC", "HDFC Bank", 1650));
+    market.addStock(Stock("WIPRO", "Wipro Limited", 550));
 
     // A fixed "today" for simulated transaction dates; swap for real dates later.
     string today = "17-09-2026";
@@ -425,13 +488,15 @@ int main() {
         cout << "7. Account Summary\n";
         cout << "8. Verify Details\n";
         cout << "9. View Transaction History\n";
-        cout << "10. Exit\n";
+        cout << "10. Open Market (Admin)\n";
+        cout << "11. Close Market (Admin)\n";
+        cout << "12. Exit\n";
         cout << "\n";
         cout << "Enter your choice: ";
 
         int choice;
         if (!(cin >> choice)) {
-            cout << "\nInvalid input! Please enter a number from 1 to 10.\n";
+            cout << "\nInvalid input! Please enter a number from 1 to 12.\n";
             cin.clear();
             cin.ignore(10000, '\n');
             continue;
@@ -439,51 +504,44 @@ int main() {
 
         switch (choice) {
             case 1:
-                cout << "\nMARKET \n";
-                cout << left << setw(10) << "Symbol" << setw(25) << "Company" << "Price" << endl;
-                cout << "\n";
-                tcs.displayStock();
-                infy.displayStock();
-                reliance.displayStock();
-                hdfc.displayStock();
-                wipro.displayStock();
+                market.displayMarket();
                 break;
 
             case 2: {
+                if (!market.isOpen()) { cout << "\nMarket is closed. Trading is paused.\n"; break; }
+
+                const vector<Stock> &stocks = market.getAllStocks();
+                cout << "\nSelect Stock:\n";
+                for (size_t i = 0; i < stocks.size(); i++) {
+                    cout << (i + 1) << ". " << stocks[i].getSymbol() << "\n";
+                }
                 int stockChoice, quantity;
-                cout << "\nSelect Stock:\n1. TCS\n2. INFY\n3. RELIANCE\n4. HDFC\n5. WIPRO\n";
                 cout << "Enter stock number: ";
                 if (!(cin >> stockChoice)) { cout << "Invalid input.\n"; cin.clear(); cin.ignore(10000, '\n'); break; }
+                if (stockChoice < 1 || stockChoice > (int)stocks.size()) { cout << "Invalid stock selection.\n"; break; }
                 cout << "Enter quantity: ";
                 if (!(cin >> quantity)) { cout << "Invalid quantity.\n"; cin.clear(); cin.ignore(10000, '\n'); break; }
 
-                switch (stockChoice) {
-                    case 1: trader.buyStock(tcs, quantity, today); break;
-                    case 2: trader.buyStock(infy, quantity, today); break;
-                    case 3: trader.buyStock(reliance, quantity, today); break;
-                    case 4: trader.buyStock(hdfc, quantity, today); break;
-                    case 5: trader.buyStock(wipro, quantity, today); break;
-                    default: cout << "Invalid stock selection.\n";
-                }
+                trader.buyStock(stocks[stockChoice - 1], quantity, today);
                 break;
             }
 
             case 3: {
+                if (!market.isOpen()) { cout << "\nMarket is closed. Trading is paused.\n"; break; }
+
+                const vector<Stock> &stocks = market.getAllStocks();
+                cout << "\nSelect Stock to Sell:\n";
+                for (size_t i = 0; i < stocks.size(); i++) {
+                    cout << (i + 1) << ". " << stocks[i].getSymbol() << "\n";
+                }
                 int stockChoice, quantity;
-                cout << "\nSelect Stock to Sell:\n1. TCS\n2. INFY\n3. RELIANCE\n4. HDFC\n5. WIPRO\n";
                 cout << "Enter stock number: ";
                 if (!(cin >> stockChoice)) { cout << "Invalid input.\n"; cin.clear(); cin.ignore(10000, '\n'); break; }
+                if (stockChoice < 1 || stockChoice > (int)stocks.size()) { cout << "Invalid stock selection.\n"; break; }
                 cout << "Enter quantity: ";
                 if (!(cin >> quantity)) { cout << "Invalid quantity.\n"; cin.clear(); cin.ignore(10000, '\n'); break; }
 
-                switch (stockChoice) {
-                    case 1: trader.sellStock(tcs, quantity, today); break;
-                    case 2: trader.sellStock(infy, quantity, today); break;
-                    case 3: trader.sellStock(reliance, quantity, today); break;
-                    case 4: trader.sellStock(hdfc, quantity, today); break;
-                    case 5: trader.sellStock(wipro, quantity, today); break;
-                    default: cout << "Invalid stock selection.\n";
-                }
+                trader.sellStock(stocks[stockChoice - 1], quantity, today);
                 break;
             }
 
@@ -496,23 +554,23 @@ int main() {
                 break;
 
             case 6: {
+                const vector<Stock> &stocks = market.getAllStocks();
+                cout << "\nSelect stock:\n";
+                for (size_t i = 0; i < stocks.size(); i++) {
+                    cout << (i + 1) << ". " << stocks[i].getSymbol() << "\n";
+                }
                 int stockChoice;
                 double newPrice;
-                cout << "\nSelect stock:\n1. TCS\n2. INFY\n3. RELIANCE\n4. HDFC\n5. WIPRO\n";
                 cout << "Enter stock number: ";
                 if (!(cin >> stockChoice)) { cout << "Invalid input.\n"; cin.clear(); cin.ignore(10000, '\n'); break; }
+                if (stockChoice < 1 || stockChoice > (int)stocks.size()) { cout << "Invalid stock selection.\n"; break; }
                 cout << "Enter new simulated price: ";
                 if (!(cin >> newPrice)) { cout << "Invalid price.\n"; cin.clear(); cin.ignore(10000, '\n'); break; }
                 if (newPrice <= 0) { cout << "Price must be greater than 0.\n"; break; }
 
-                switch (stockChoice) {
-                    case 1: tcs.updatePrice(newPrice); trader.updatePortfolioPrice("TCS", newPrice); break;
-                    case 2: infy.updatePrice(newPrice); trader.updatePortfolioPrice("INFY", newPrice); break;
-                    case 3: reliance.updatePrice(newPrice); trader.updatePortfolioPrice("RELIANCE", newPrice); break;
-                    case 4: hdfc.updatePrice(newPrice); trader.updatePortfolioPrice("HDFC", newPrice); break;
-                    case 5: wipro.updatePrice(newPrice); trader.updatePortfolioPrice("WIPRO", newPrice); break;
-                    default: cout << "Invalid stock selection.\n";
-                }
+                string symbol = stocks[stockChoice - 1].getSymbol();
+                market.updateStockPrice(symbol, newPrice);
+                trader.updatePortfolioPrice(symbol, newPrice);
                 break;
             }
 
@@ -549,11 +607,19 @@ int main() {
                 break;
 
             case 10:
+                market.openMarket();
+                break;
+
+            case 11:
+                market.closeMarket();
+                break;
+
+            case 12:
                 cout << "\nThank you for using the Virtual Stock Market Simulator!\n";
                 return 0;
 
             default:
-                cout << "\nInvalid choice! Please select between 1 and 10.\n";
+                cout << "\nInvalid choice! Please select between 1 and 12.\n";
         }
     }
 
