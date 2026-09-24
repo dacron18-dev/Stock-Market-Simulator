@@ -2,6 +2,8 @@
 #include <vector>
 #include <string>
 #include <iomanip>
+#include <cstdlib>
+#include <ctime>
 using namespace std;
 
 // STOCK CLASS
@@ -98,6 +100,50 @@ public:
             cout << left << setw(5) << i++;
             s.displayStock();
         }
+    }
+};
+
+// MARKET EVENT CLASS
+// Represents something that happens to the market as a whole (a
+// rally, a crash, a volatile session...) and knows how to apply
+// its effect to every stock's price.
+enum class MarketEventType { BULL_RUN, BEAR_CRASH, VOLATILITY_SPIKE, STABLE_DRIFT };
+
+class MarketEvent {
+private:
+    MarketEventType type;
+    double impactFactor;   // multiplier applied to each stock's price
+
+public:
+    MarketEvent(MarketEventType t, double impact) : type(t), impactFactor(impact) {}
+
+    string getTypeString() const {
+        switch (type) {
+            case MarketEventType::BULL_RUN:         return "BULL RUN";
+            case MarketEventType::BEAR_CRASH:       return "BEAR CRASH";
+            case MarketEventType::VOLATILITY_SPIKE: return "VOLATILITY SPIKE";
+            case MarketEventType::STABLE_DRIFT:     return "STABLE DRIFT";
+        }
+        return "UNKNOWN";
+    }
+
+    double getImpactFactor() const { return impactFactor; }
+
+    // Applies the impact factor to every stock in the market, with a
+    // small amount of per-stock random jitter so prices don't all move
+    // by exactly the same percentage.
+    void applyToMarket(Market &market) const {
+        for (const auto &s : market.getAllStocks()) {
+            double jitter = 1.0 + ((rand() % 21 - 10) / 1000.0);   // +/- 1%
+            double newPrice = s.getPrice() * impactFactor * jitter;
+            if (newPrice < 1.0) newPrice = 1.0;   // guard against a non-positive price
+            market.updateStockPrice(s.getSymbol(), newPrice);
+        }
+    }
+
+    void displayEvent() const {
+        cout << "\nMARKET EVENT: " << getTypeString()
+             << " (impact x" << fixed << setprecision(3) << impactFactor << ")\n";
     }
 };
 
@@ -533,6 +579,62 @@ public:
 };
 int Trader::traderCount = 0;
 
+// SIMULATION CLASS
+// Owns the simulation clock: starts/stops the simulation, and on
+// each tick generates a random MarketEvent and applies it to the
+// connected Market.
+class Simulation {
+private:
+    Market &market;   // the market this simulation is connected to
+    bool running;
+    int tickCount;
+
+    MarketEvent generateMarketEvent() {
+        int roll = rand() % 4;
+        switch (roll) {
+            case 0: return MarketEvent(MarketEventType::BULL_RUN, 1.05);
+            case 1: return MarketEvent(MarketEventType::BEAR_CRASH, 0.95);
+            case 2: return MarketEvent(MarketEventType::VOLATILITY_SPIKE,
+                                        1.0 + ((rand() % 21 - 10) / 100.0));
+            default: return MarketEvent(MarketEventType::STABLE_DRIFT,
+                                         1.0 + ((rand() % 5 - 2) / 1000.0));
+        }
+    }
+
+public:
+    Simulation(Market &m) : market(m), running(false), tickCount(0) {}
+
+    void start() {
+        running = true;
+        cout << "\nSimulation started.\n";
+    }
+
+    void stop() {
+        running = false;
+        cout << "\nSimulation stopped.\n";
+    }
+
+    bool isRunning() const { return running; }
+    int getTickCount() const { return tickCount; }
+
+    // Generates one random market event, applies it to the market,
+    // and advances the simulation clock by one tick.
+    void advanceTick() {
+        if (!running) {
+            cout << "\nSimulation is not running. Start it first.\n";
+            return;
+        }
+
+        MarketEvent event = generateMarketEvent();
+        event.applyToMarket(market);
+        tickCount++;
+
+        cout << "\n--- Tick " << tickCount << " ---";
+        event.displayEvent();
+        market.displayMarket();
+    }
+};
+
 // HELPER FUNCTION
 bool isValidPhone(string phone) {
     if (phone.length() != 10) return false;
@@ -544,6 +646,8 @@ bool isValidPhone(string phone) {
 
 // MAIN
 int main() {
+    srand(static_cast<unsigned int>(time(nullptr)));
+
     cout << "\n";
     cout << " VIRTUAL STOCK MARKET SIMULATOR\n";
     cout << "\n";
@@ -592,6 +696,9 @@ int main() {
     // A fixed "today" for simulated transaction dates; swap for real dates later.
     string today = "17-09-2026";
 
+    // Simulation is connected to this one market and drives its price ticks.
+    Simulation simulation(market);
+
     while (true) {
         cout << "\n\n";
         cout << " MAIN MENU\n";
@@ -608,13 +715,16 @@ int main() {
         cout << "10. View Order History\n";
         cout << "11. Open Market (Admin)\n";
         cout << "12. Close Market (Admin)\n";
-        cout << "13. Exit\n";
+        cout << "13. Start Simulation (Admin)\n";
+        cout << "14. Stop Simulation (Admin)\n";
+        cout << "15. Advance Simulation Tick (Admin)\n";
+        cout << "16. Exit\n";
         cout << "\n";
         cout << "Enter your choice: ";
 
         int choice;
         if (!(cin >> choice)) {
-            cout << "\nInvalid input! Please enter a number from 1 to 13.\n";
+            cout << "\nInvalid input! Please enter a number from 1 to 16.\n";
             cin.clear();
             cin.ignore(10000, '\n');
             continue;
@@ -737,11 +847,28 @@ int main() {
                 break;
 
             case 13:
+                simulation.start();
+                break;
+
+            case 14:
+                simulation.stop();
+                break;
+
+            case 15: {
+                simulation.advanceTick();
+                // Keep the trader's portfolio in sync with the new prices.
+                for (const auto &s : market.getAllStocks()) {
+                    trader.updatePortfolioPrice(s.getSymbol(), s.getPrice());
+                }
+                break;
+            }
+
+            case 16:
                 cout << "\nThank you for using the Virtual Stock Market Simulator!\n";
                 return 0;
 
             default:
-                cout << "\nInvalid choice! Please select between 1 and 13.\n";
+                cout << "\nInvalid choice! Please select between 1 and 16.\n";
         }
     }
 
