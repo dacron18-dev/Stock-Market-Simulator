@@ -101,6 +101,91 @@ public:
     }
 };
 
+// ORDER CLASS
+// Wraps a single buy or sell request: what's being traded, at what
+// price/quantity, whether it's valid, and its current status.
+enum class OrderType { BUY, SELL };
+enum class OrderStatus { PENDING, EXECUTED, CANCELLED, REJECTED };
+
+class Order {
+private:
+    static int nextOrderID;
+    int orderID;
+    OrderType type;
+    Stock stock;
+    int quantity;
+    double orderPrice;      // price captured at the moment the order was placed
+    OrderStatus status;
+
+public:
+    Order(OrderType t, Stock s, int qty)
+        : type(t), stock(s), quantity(qty), orderPrice(s.getPrice()), status(OrderStatus::PENDING) {
+        orderID = nextOrderID++;
+    }
+
+    int getOrderID() const { return orderID; }
+    string getSymbol() const { return stock.getSymbol(); }
+    int getQuantity() const { return quantity; }
+    OrderStatus getStatus() const { return status; }
+
+    string getTypeString() const { return type == OrderType::BUY ? "BUY" : "SELL"; }
+
+    string getStatusString() const {
+        switch (status) {
+            case OrderStatus::PENDING:   return "PENDING";
+            case OrderStatus::EXECUTED:  return "EXECUTED";
+            case OrderStatus::CANCELLED: return "CANCELLED";
+            case OrderStatus::REJECTED:  return "REJECTED";
+        }
+        return "UNKNOWN";
+    }
+
+    // Checks the order against the trader's available cash (for BUY)
+    // or owned quantity (for SELL). Marks the order REJECTED if invalid.
+    bool validate(double availableCash, int ownedQuantity) {
+        if (quantity <= 0) { status = OrderStatus::REJECTED; return false; }
+
+        if (type == OrderType::BUY) {
+            if (orderPrice * quantity > availableCash) {
+                status = OrderStatus::REJECTED;
+                return false;
+            }
+        } else {
+            if (quantity > ownedQuantity) {
+                status = OrderStatus::REJECTED;
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Called once the caller (Trader) has actually applied the cash/
+    // holding change. Only a PENDING order can be executed.
+    bool execute() {
+        if (status != OrderStatus::PENDING) return false;
+        status = OrderStatus::EXECUTED;
+        return true;
+    }
+
+    // Only a PENDING order can be cancelled; an already-executed or
+    // rejected order cannot be undone this way.
+    bool cancel() {
+        if (status != OrderStatus::PENDING) return false;
+        status = OrderStatus::CANCELLED;
+        return true;
+    }
+
+    void displayOrder() const {
+        cout << left << setw(6) << orderID
+             << setw(6) << getTypeString()
+             << setw(10) << stock.getSymbol()
+             << setw(10) << quantity
+             << "Rs. " << fixed << setprecision(2) << setw(12) << orderPrice
+             << getStatusString() << endl;
+    }
+};
+int Order::nextOrderID = 1;
+
 // TRANSACTION CLASS
 // Records a single completed trade. Every buy/sell creates one
 // of these, which is stored in the trader's transaction history.
@@ -299,6 +384,7 @@ class Trader : public User {
 private:
     double virtualMoney;
     Portfolio portfolio;
+    vector<Order> orderHistory;
     static int traderCount;   // shared by all Traders
 
 public:
@@ -321,20 +407,29 @@ public:
     }
 
     void buyStock(const Stock &stock, int quantity, string date) {
-        if (quantity <= 0) { cout << "Invalid quantity.\n"; return; }
+        Order order(OrderType::BUY, stock, quantity);
 
-        double totalCost = stock.getPrice() * quantity;
-        if (totalCost > virtualMoney) {
-            cout << "\nInsufficient virtual balance!\n";
-            cout << "Required : Rs. " << totalCost << endl;
-            cout << "Available: Rs. " << virtualMoney << endl;
+        bool valid = order.validate(virtualMoney, portfolio.getQuantity(stock.getSymbol()));
+        if (!valid) {
+            if (quantity <= 0) {
+                cout << "Invalid quantity.\n";
+            } else {
+                double totalCost = stock.getPrice() * quantity;
+                cout << "\nInsufficient virtual balance!\n";
+                cout << "Required : Rs. " << totalCost << endl;
+                cout << "Available: Rs. " << virtualMoney << endl;
+            }
+            orderHistory.push_back(order);
             return;
         }
 
+        double totalCost = stock.getPrice() * quantity;
         virtualMoney -= totalCost;
         Holding newHolding(stock, quantity);
         portfolio = portfolio + newHolding;              // operator overloading
         portfolio.recordTransaction("BUY", stock.getSymbol(), quantity, stock.getPrice(), date);
+        order.execute();
+        orderHistory.push_back(order);
 
         cout << "\nStock purchased successfully!\n";
         cout << "Stock : " << stock.getSymbol() << endl;
@@ -344,16 +439,20 @@ public:
     }
 
     void sellStock(const Stock &stock, int quantity, string date) {
-        if (quantity <= 0) { cout << "Invalid quantity.\n"; return; }
-
         int ownedQuantity = portfolio.getQuantity(stock.getSymbol());
-        if (ownedQuantity == 0) {
-            cout << "\nYou do not own " << stock.getSymbol() << ".\n";
-            return;
-        }
-        if (quantity > ownedQuantity) {
-            cout << "\nYou cannot sell " << quantity << " shares.\n";
-            cout << "You only own " << ownedQuantity << " shares.\n";
+        Order order(OrderType::SELL, stock, quantity);
+
+        bool valid = order.validate(virtualMoney, ownedQuantity);
+        if (!valid) {
+            if (quantity <= 0) {
+                cout << "Invalid quantity.\n";
+            } else if (ownedQuantity == 0) {
+                cout << "\nYou do not own " << stock.getSymbol() << ".\n";
+            } else {
+                cout << "\nYou cannot sell " << quantity << " shares.\n";
+                cout << "You only own " << ownedQuantity << " shares.\n";
+            }
+            orderHistory.push_back(order);
             return;
         }
 
@@ -363,12 +462,30 @@ public:
         if (sold) {
             virtualMoney += saleAmount;
             portfolio.recordTransaction("SELL", stock.getSymbol(), quantity, stock.getPrice(), date);
+            order.execute();
             cout << "\nStock sold successfully!\n";
             cout << "Stock : " << stock.getSymbol() << endl;
             cout << "Quantity : " << quantity << endl;
             cout << "Received : Rs. " << saleAmount << endl;
             cout << "New Balance: Rs. " << virtualMoney << endl;
+        } else {
+            // Defensive: shouldn't happen since validate() already checked
+            // ownedQuantity, but leaves the order correctly accounted for.
+            order.cancel();
         }
+        orderHistory.push_back(order);
+    }
+
+    void displayOrderHistory() const {
+        if (orderHistory.empty()) {
+            cout << "\nNo orders placed yet.\n";
+            return;
+        }
+        cout << "\nORDER HISTORY\n";
+        cout << left << setw(6) << "ID" << setw(6) << "Type"
+             << setw(10) << "Symbol" << setw(10) << "Qty"
+             << setw(16) << "Price" << "Status" << endl;
+        for (const auto &o : orderHistory) o.displayOrder();
     }
 
     void displayBalance() const {
@@ -488,15 +605,16 @@ int main() {
         cout << "7. Account Summary\n";
         cout << "8. Verify Details\n";
         cout << "9. View Transaction History\n";
-        cout << "10. Open Market (Admin)\n";
-        cout << "11. Close Market (Admin)\n";
-        cout << "12. Exit\n";
+        cout << "10. View Order History\n";
+        cout << "11. Open Market (Admin)\n";
+        cout << "12. Close Market (Admin)\n";
+        cout << "13. Exit\n";
         cout << "\n";
         cout << "Enter your choice: ";
 
         int choice;
         if (!(cin >> choice)) {
-            cout << "\nInvalid input! Please enter a number from 1 to 12.\n";
+            cout << "\nInvalid input! Please enter a number from 1 to 13.\n";
             cin.clear();
             cin.ignore(10000, '\n');
             continue;
@@ -607,19 +725,23 @@ int main() {
                 break;
 
             case 10:
-                market.openMarket();
+                trader.displayOrderHistory();
                 break;
 
             case 11:
-                market.closeMarket();
+                market.openMarket();
                 break;
 
             case 12:
+                market.closeMarket();
+                break;
+
+            case 13:
                 cout << "\nThank you for using the Virtual Stock Market Simulator!\n";
                 return 0;
 
             default:
-                cout << "\nInvalid choice! Please select between 1 and 12.\n";
+                cout << "\nInvalid choice! Please select between 1 and 13.\n";
         }
     }
 
