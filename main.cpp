@@ -421,6 +421,49 @@ public:
 };
 int User::nextUserID = 1001;
 
+// ACCOUNT CLASS
+// Owns the trader's cash balance: depositing money, checking whether
+// enough cash is available, and deducting/crediting it when an order
+// is executed. This keeps money-handling out of Trader itself.
+class Account {
+private:
+    double balance;
+    double totalDeposited;
+
+public:
+    Account(double openingBalance) : balance(openingBalance), totalDeposited(openingBalance) {}
+
+    double getBalance() const { return balance; }
+
+    void deposit(double amount) {
+        if (amount <= 0) return;
+        balance += amount;
+        totalDeposited += amount;
+    }
+
+    bool hasSufficientFunds(double amount) const {
+        return amount <= balance;
+    }
+
+    // Deducts cash for an executed BUY order. Returns false (and leaves
+    // the balance unchanged) if funds are insufficient.
+    bool deduct(double amount) {
+        if (!hasSufficientFunds(amount)) return false;
+        balance -= amount;
+        return true;
+    }
+
+    // Credits cash from an executed SELL order.
+    void credit(double amount) {
+        if (amount > 0) balance += amount;
+    }
+
+    void displaySummary() const {
+        cout << "Available Balance : Rs. " << fixed << setprecision(2) << balance << endl;
+        cout << "Total Deposited    : Rs. " << fixed << setprecision(2) << totalDeposited << endl;
+    }
+};
+
 // TRADER CLASS (derived from User)
 //  User
 //    |
@@ -428,14 +471,14 @@ int User::nextUserID = 1001;
 //  Trader
 class Trader : public User {
 private:
-    double virtualMoney;
+    Account account;
     Portfolio portfolio;
     vector<Order> orderHistory;
     static int traderCount;   // shared by all Traders
 
 public:
     Trader(string n, string e, string p, double money)
-        : User(n, e, p), virtualMoney(money) {
+        : User(n, e, p), account(money) {
         traderCount++;
     }
 
@@ -455,7 +498,7 @@ public:
     void buyStock(const Stock &stock, int quantity, string date) {
         Order order(OrderType::BUY, stock, quantity);
 
-        bool valid = order.validate(virtualMoney, portfolio.getQuantity(stock.getSymbol()));
+        bool valid = order.validate(account.getBalance(), portfolio.getQuantity(stock.getSymbol()));
         if (!valid) {
             if (quantity <= 0) {
                 cout << "Invalid quantity.\n";
@@ -463,14 +506,14 @@ public:
                 double totalCost = stock.getPrice() * quantity;
                 cout << "\nInsufficient virtual balance!\n";
                 cout << "Required : Rs. " << totalCost << endl;
-                cout << "Available: Rs. " << virtualMoney << endl;
+                cout << "Available: Rs. " << account.getBalance() << endl;
             }
             orderHistory.push_back(order);
             return;
         }
 
         double totalCost = stock.getPrice() * quantity;
-        virtualMoney -= totalCost;
+        account.deduct(totalCost);
         Holding newHolding(stock, quantity);
         portfolio = portfolio + newHolding;              // operator overloading
         portfolio.recordTransaction("BUY", stock.getSymbol(), quantity, stock.getPrice(), date);
@@ -481,14 +524,14 @@ public:
         cout << "Stock : " << stock.getSymbol() << endl;
         cout << "Quantity : " << quantity << endl;
         cout << "Amount : Rs. " << totalCost << endl;
-        cout << "Remaining Balance: Rs. " << virtualMoney << endl;
+        cout << "Remaining Balance: Rs. " << account.getBalance() << endl;
     }
 
     void sellStock(const Stock &stock, int quantity, string date) {
         int ownedQuantity = portfolio.getQuantity(stock.getSymbol());
         Order order(OrderType::SELL, stock, quantity);
 
-        bool valid = order.validate(virtualMoney, ownedQuantity);
+        bool valid = order.validate(account.getBalance(), ownedQuantity);
         if (!valid) {
             if (quantity <= 0) {
                 cout << "Invalid quantity.\n";
@@ -506,14 +549,14 @@ public:
         bool sold = portfolio.sellHolding(stock.getSymbol(), quantity);
 
         if (sold) {
-            virtualMoney += saleAmount;
+            account.credit(saleAmount);
             portfolio.recordTransaction("SELL", stock.getSymbol(), quantity, stock.getPrice(), date);
             order.execute();
             cout << "\nStock sold successfully!\n";
             cout << "Stock : " << stock.getSymbol() << endl;
             cout << "Quantity : " << quantity << endl;
             cout << "Received : Rs. " << saleAmount << endl;
-            cout << "New Balance: Rs. " << virtualMoney << endl;
+            cout << "New Balance: Rs. " << account.getBalance() << endl;
         } else {
             // Defensive: shouldn't happen since validate() already checked
             // ownedQuantity, but leaves the order correctly accounted for.
@@ -536,15 +579,15 @@ public:
 
     void displayBalance() const {
         cout << "\nVirtual Balance: Rs. "
-             << fixed << setprecision(2) << virtualMoney << endl;
+             << fixed << setprecision(2) << account.getBalance() << endl;
     }
 
     void displayAccountSummary() const {
         double portfolioValue = portfolio.getPortfolioValue();
-        double totalAccountValue = virtualMoney + portfolioValue;
+        double totalAccountValue = account.getBalance() + portfolioValue;
         showDetails();
         cout << "\n ACCOUNT SUMMARY\n";
-        cout << "Available Balance : Rs. " << fixed << setprecision(2) << virtualMoney << endl;
+        account.displaySummary();
         cout << "Portfolio Value : Rs. " << portfolioValue << endl;
         cout << "Total Account Value: Rs. " << totalAccountValue << endl;
     }
@@ -573,7 +616,7 @@ public:
     friend ostream& operator<<(ostream &out, const Trader &trader) {
         out << "Trader Name: " << trader.name << endl;
         out << "Trader ID: " << trader.userID << endl;
-        out << "Available Money: Rs. " << fixed << setprecision(2) << trader.virtualMoney << endl;
+        out << "Available Money: Rs. " << fixed << setprecision(2) << trader.account.getBalance() << endl;
         return out;
     }
 };
