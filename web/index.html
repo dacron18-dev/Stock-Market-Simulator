@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stock Market Simulator</title>
+<style>
+:root{
+  --bg:#f7f8fa;--card:#fff;--text:#1a1d29;--sub:#6b7280;--border:#e5e7eb;
+  --accent:#2563eb;--green:#16a34a;--red:#dc2626;--amber:#d97706;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0f1117;--card:#171a23;--text:#e5e7eb;--sub:#9ca3af;--border:#2a2e3a;}}
+:root[data-theme="dark"]{--bg:#0f1117;--card:#171a23;--text:#e5e7eb;--sub:#9ca3af;--border:#2a2e3a;}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;min-height:100%;}
+.wrap{max-width:900px;margin:0 auto;padding:16px;}
+.hidden{display:none !important;}
+h1{font-size:20px;margin:0 0 4px;}
+.setup{max-width:380px;margin:60px auto;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:24px;}
+.setup input{width:100%;padding:10px;margin:6px 0 14px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:14px;}
+label{font-size:12px;color:var(--sub);}
+button{cursor:pointer;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:600;background:var(--accent);color:#fff;}
+button.secondary{background:var(--border);color:var(--text);}
+button.danger{background:var(--red);}
+button:disabled{opacity:.5;cursor:not-allowed;}
+.header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+.stats{display:flex;gap:16px;flex-wrap:wrap;}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;min-width:110px;}
+.stat .v{font-size:16px;font-weight:700;}
+.stat .l{font-size:11px;color:var(--sub);}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:14px;overflow-x:auto;}
+.tab{padding:8px 12px;font-size:13px;color:var(--sub);border-bottom:2px solid transparent;white-space:nowrap;cursor:pointer;}
+.tab.active{color:var(--accent);border-color:var(--accent);font-weight:600;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--border);}
+th{color:var(--sub);font-weight:600;font-size:11px;text-transform:uppercase;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:12px;overflow-x:auto;}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;}
+.badge.open{background:#16a34a22;color:var(--green);}
+.badge.closed{background:#dc262622;color:var(--red);}
+.badge.exec{background:#16a34a22;color:var(--green);}
+.badge.rej{background:#dc262622;color:var(--red);}
+.badge.pending{background:#d9770622;color:var(--amber);}
+.badge.unread{background:#2563eb22;color:var(--accent);}
+.row-actions{display:flex;gap:6px;}
+.modal-bg{position:fixed;inset:0;background:#00000066;display:flex;align-items:center;justify-content:center;z-index:10;}
+.modal{background:var(--card);border-radius:12px;padding:20px;width:280px;}
+.modal input,.modal select{width:100%;padding:8px;margin:6px 0 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);}
+.empty{color:var(--sub);font-size:13px;padding:8px 0;}
+.event-log{font-size:12px;color:var(--sub);margin-top:8px;}
+.admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+@media (max-width:480px){.admin-grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="setup" class="setup">
+    <h1>📈 Stock Market Simulator</h1>
+    <p style="color:var(--sub);font-size:13px;">Create your virtual trader account</p>
+    <label>Name</label><input id="s-name" placeholder="Rahul">
+    <label>Email</label><input id="s-email" placeholder="rahul@test.com">
+    <label>Phone</label><input id="s-phone" placeholder="9876543210">
+    <label>Starting Balance (Rs.)</label><input id="s-balance" type="number" value="50000">
+    <button style="width:100%" onclick="createAccount()">Create Account</button>
+  </div>
+
+  <div id="app" class="hidden">
+    <div class="header">
+      <div>
+        <h1>📈 Stock Market Simulator</h1>
+        <span id="market-badge" class="badge open">MARKET OPEN</span>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="v" id="stat-balance">-</div><div class="l">Balance</div></div>
+        <div class="stat"><div class="v" id="stat-portfolio">-</div><div class="l">Portfolio</div></div>
+        <div class="stat"><div class="v" id="stat-total">-</div><div class="l">Total Value</div></div>
+        <div class="stat"><div class="v" id="stat-notif">0</div><div class="l">Unread Alerts</div></div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="market">Market</div>
+      <div class="tab" data-tab="portfolio">Portfolio</div>
+      <div class="tab" data-tab="history">History</div>
+      <div class="tab" data-tab="alerts">Alerts</div>
+      <div class="tab" data-tab="admin">Admin</div>
+    </div>
+
+    <div id="tab-market" class="tabcontent"></div>
+    <div id="tab-portfolio" class="tabcontent hidden"></div>
+    <div id="tab-history" class="tabcontent hidden"></div>
+    <div id="tab-alerts" class="tabcontent hidden"></div>
+    <div id="tab-admin" class="tabcontent hidden"></div>
+  </div>
+
+  <div id="modal-root"></div>
+</div>
+
+<script>
+// ---------- Domain model (ported from the C++ CRC classes) ----------
+class Stock{constructor(symbol,name,price){this.symbol=symbol;this.name=name;this.price=price;this.prev=price;}update(p){this.prev=this.price;this.price=p;}}
+class Market{constructor(){this.stocks=[];this.open=true;}add(s){this.stocks.push(s);}find(sym){return this.stocks.find(s=>s.symbol===sym);}updatePrice(sym,p){const s=this.find(sym);if(s)s.update(p);}}
+class Holding{constructor(stock,qty){this.stock=stock;this.qty=qty;}value(){return this.stock.price*this.qty;}}
+let txSeq=1;
+class Portfolio{constructor(){this.holdings=[];this.tx=[];}add(stock,qty){let h=this.holdings.find(h=>h.stock.symbol===stock.symbol);if(h)h.qty+=qty;else this.holdings.push(new Holding(stock,qty));}sell(sym,qty){let h=this.holdings.find(h=>h.stock.symbol===sym);if(!h||h.qty<qty)return false;h.qty-=qty;if(h.qty===0)this.holdings=this.holdings.filter(x=>x!==h);return true;}qtyOf(sym){const h=this.holdings.find(h=>h.stock.symbol===sym);return h?h.qty:0;}totalValue(){return this.holdings.reduce((s,h)=>s+h.value(),0);}recordTx(type,sym,qty,price,date){this.tx.push({id:txSeq++,type,sym,qty,price,date});}}
+class Account{constructor(balance){this.balance=balance;this.deposited=balance;}hasFunds(a){return a<=this.balance;}deduct(a){if(!this.hasFunds(a))return false;this.balance-=a;return true;}credit(a){this.balance+=a;}}
+let orderSeq=1;
+class Order{constructor(type,stock,qty){this.id=orderSeq++;this.type=type;this.stock=stock;this.qty=qty;this.price=stock.price;this.status='PENDING';}validate(cash,owned){if(this.qty<=0){this.status='REJECTED';return false;}if(this.type==='BUY'){if(this.price*this.qty>cash){this.status='REJECTED';return false;}}else if(this.qty>owned){this.status='REJECTED';return false;}return true;}execute(){if(this.status!=='PENDING')return false;this.status='EXECUTED';return true;}cancel(){if(this.status!=='PENDING')return false;this.status='CANCELLED';return true;}}
+let alertSeq=1,notifSeq=1;
+class PriceAlert{constructor(symbol,target,above){this.id=alertSeq++;this.symbol=symbol;this.target=target;this.above=above;this.triggered=false;}check(price){if(this.triggered)return false;const reached=this.above?price>=this.target:price<=this.target;if(reached){this.triggered=true;return true;}return false;}}
+class Notification{constructor(msg,date){this.id=notifSeq++;this.msg=msg;this.date=date;this.read=false;}}
+class Trader{
+  constructor(name,email,phone,balance){this.name=name;this.email=email;this.phone=phone;this.account=new Account(balance);this.portfolio=new Portfolio();this.orders=[];this.alerts=[];this.notifications=[];}
+  buy(stock,qty,date){const order=new Order('BUY',stock,qty);const valid=order.validate(this.account.balance,this.portfolio.qtyOf(stock.symbol));if(!valid){this.orders.push(order);return{ok:false,reason:qty<=0?'Invalid quantity':'Insufficient balance'};}const cost=stock.price*qty;this.account.deduct(cost);this.portfolio.add(stock,qty);this.portfolio.recordTx('BUY',stock.symbol,qty,stock.price,date);order.execute();this.orders.push(order);return{ok:true};}
+  sell(stock,qty,date){const owned=this.portfolio.qtyOf(stock.symbol);const order=new Order('SELL',stock,qty);const valid=order.validate(this.account.balance,owned);if(!valid){this.orders.push(order);return{ok:false,reason:qty<=0?'Invalid quantity':(owned===0?'You do not own this stock':'Not enough shares')};}const amt=stock.price*qty;const sold=this.portfolio.sell(stock.symbol,qty);if(sold){this.account.credit(amt);this.portfolio.recordTx('SELL',stock.symbol,qty,stock.price,date);order.execute();}else order.cancel();this.orders.push(order);return{ok:sold};}
+  setAlert(symbol,target,above){this.alerts.push(new PriceAlert(symbol,target,above));}
+  checkAlerts(market,date){for(const a of this.alerts){if(a.triggered)continue;const s=market.find(a.symbol);if(!s)continue;if(a.check(s.price)){const dir=a.above?'risen to/above':'fallen to/below';this.notifications.push(new Notification(`${a.symbol} has ${dir} Rs. ${a.target.toFixed(2)}`,date));}}}
+}
+class MarketEvent{constructor(type,impact){this.type=type;this.impact=impact;}apply(market){for(const s of market.stocks){const jitter=1+((Math.random()*21-10)/1000);let np=s.price*this.impact*jitter;if(np<1)np=1;market.updatePrice(s.symbol,np);}}}
+class Simulation{constructor(market){this.market=market;this.running=false;this.tick=0;this.lastEvent=null;}start(){this.running=true;}stop(){this.running=false;}advance(){if(!this.running)return null;const opts=[['BULL RUN',1.05],['BEAR CRASH',0.95],['VOLATILITY SPIKE',1+((Math.random()*21-10)/100)],['STABLE DRIFT',1+((Math.random()*5-2)/1000)]];const[type,impact]=opts[Math.floor(Math.random()*4)];const ev=new MarketEvent(type,impact);ev.apply(this.market);this.tick++;this.lastEvent=ev;return ev;}}
+
+// ---------- App wiring ----------
+const market=new Market();
+[["TCS","Tata Consultancy Services",3500],["INFY","Infosys",1800],["RELIANCE","Reliance Industries",2900],["HDFC","HDFC Bank",1650],["WIPRO","Wipro Limited",550]].forEach(([sym,name,price])=>market.add(new Stock(sym,name,price)));
+let trader=null;
+const sim=new Simulation(market);
+const today=()=>new Date().toISOString().slice(0,10);
+const rs=n=>"Rs. "+n.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+function createAccount(){
+  const name=document.getElementById('s-name').value.trim()||'Trader';
+  const email=document.getElementById('s-email').value.trim();
+  const phone=document.getElementById('s-phone').value.trim();
+  const balance=parseFloat(document.getElementById('s-balance').value)||0;
+  if(balance<=0){alert('Enter a starting balance greater than 0.');return;}
+  trader=new Trader(name,email,phone,balance);
+  document.getElementById('setup').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  renderAll();
+}
+
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tabcontent').forEach(x=>x.classList.add('hidden'));
+  t.classList.add('active');
+  document.getElementById('tab-'+t.dataset.tab).classList.remove('hidden');
+}));
+
+function renderAll(){renderHeader();renderMarket();renderPortfolio();renderHistory();renderAlerts();renderAdmin();}
+
+function renderHeader(){
+  document.getElementById('stat-balance').textContent=rs(trader.account.balance);
+  document.getElementById('stat-portfolio').textContent=rs(trader.portfolio.totalValue());
+  document.getElementById('stat-total').textContent=rs(trader.account.balance+trader.portfolio.totalValue());
+  document.getElementById('stat-notif').textContent=trader.notifications.filter(n=>!n.read).length;
+  const badge=document.getElementById('market-badge');
+  badge.textContent=market.open?'MARKET OPEN':'MARKET CLOSED';
+  badge.className='badge '+(market.open?'open':'closed');
+}
+
+function renderMarket(){
+  let rows=market.stocks.map(s=>{
+    const dir=s.price>s.prev?'▲':s.price<s.prev?'▼':'–';
+    const color=s.price>s.prev?'var(--green)':s.price<s.prev?'var(--red)':'var(--sub)';
+    return `<tr><td><b>${s.symbol}</b></td><td>${s.name}</td><td>${rs(s.price)} <span style="color:${color}">${dir}</span></td>
+    <td class="row-actions"><button ${market.open?'':'disabled'} onclick="openTrade('${s.symbol}','BUY')">Buy</button>
+    <button class="secondary" ${market.open?'':'disabled'} onclick="openTrade('${s.symbol}','SELL')">Sell</button></td></tr>`;
+  }).join('');
+  document.getElementById('tab-market').innerHTML=`<div class="card"><table><tr><th>Symbol</th><th>Company</th><th>Price</th><th></th></tr>${rows}</table></div>`;
+}
+
+function renderPortfolio(){
+  let rows=trader.portfolio.holdings.map(h=>`<tr><td>${h.stock.symbol}</td><td>${h.stock.name}</td><td>${h.qty}</td><td>${rs(h.value())}</td></tr>`).join('');
+  document.getElementById('tab-portfolio').innerHTML=`<div class="card"><table><tr><th>Symbol</th><th>Company</th><th>Qty</th><th>Value</th></tr>
+  ${rows||'<tr><td colspan=4 class="empty">Portfolio is empty.</td></tr>'}</table></div>`;
+}
+
+function renderHistory(){
+  let ord=trader.orders.map(o=>`<tr><td>${o.id}</td><td>${o.type}</td><td>${o.stock.symbol}</td><td>${o.qty}</td><td>${rs(o.price)}</td>
+  <td><span class="badge ${o.status==='EXECUTED'?'exec':o.status==='REJECTED'?'rej':'pending'}">${o.status}</span></td></tr>`).join('');
+  let tx=trader.portfolio.tx.map(t=>`<tr><td>${t.id}</td><td>${t.type}</td><td>${t.sym}</td><td>${t.qty}</td><td>${rs(t.price*t.qty)}</td><td>${t.date}</td></tr>`).join('');
+  document.getElementById('tab-history').innerHTML=`
+  <div class="card"><b>Order History</b><table><tr><th>ID</th><th>Type</th><th>Symbol</th><th>Qty</th><th>Price</th><th>Status</th></tr>
+  ${ord||'<tr><td colspan=6 class="empty">No orders yet.</td></tr>'}</table></div>
+  <div class="card"><b>Transaction History</b><table><tr><th>ID</th><th>Type</th><th>Symbol</th><th>Qty</th><th>Amount</th><th>Date</th></tr>
+  ${tx||'<tr><td colspan=6 class="empty">No transactions yet.</td></tr>'}</table></div>`;
+}
+
+function renderAlerts(){
+  const opts=market.stocks.map(s=>`<option value="${s.symbol}">${s.symbol}</option>`).join('');
+  let alertRows=trader.alerts.map(a=>`<tr><td>${a.id}</td><td>${a.symbol}</td><td>${a.above?'>=':'<='} ${rs(a.target)}</td><td>${a.triggered?'TRIGGERED':'ACTIVE'}</td></tr>`).join('');
+  let notifRows=trader.notifications.map(n=>`<tr><td>${n.id}</td><td>${n.read?'READ':'<span class=\"badge unread\">UNREAD</span>'}</td><td>${n.date}</td><td>${n.msg}</td></tr>`).join('');
+  document.getElementById('tab-alerts').innerHTML=`
+  <div class="card"><b>Set Price Alert</b><br><br>
+    <select id="al-symbol">${opts}</select>
+    <select id="al-dir" style="margin-left:8px"><option value="1">Rises to/above</option><option value="0">Falls to/below</option></select>
+    <input id="al-target" type="number" placeholder="Target price" style="width:130px;margin-left:8px">
+    <button style="margin-left:8px" onclick="addAlert()">Set Alert</button>
+  </div>
+  <div class="card"><b>Alerts</b><table><tr><th>ID</th><th>Symbol</th><th>Target</th><th>Status</th></tr>
+  ${alertRows||'<tr><td colspan=4 class="empty">No alerts set.</td></tr>'}</table></div>
+  <div class="card"><b>Notifications</b> <button class="secondary" onclick="markAllRead()">Mark all read</button>
+  <table><tr><th>ID</th><th>Status</th><th>Date</th><th>Message</th></tr>
+  ${notifRows||'<tr><td colspan=4 class="empty">No notifications.</td></tr>'}</table></div>`;
+}
+
+function renderAdmin(){
+  document.getElementById('tab-admin').innerHTML=`
+  <div class="card admin-grid">
+    <div><b>Market</b><br><br>
+      <button onclick="market.open=true;renderAll()">Open Market</button>
+      <button class="danger" onclick="market.open=false;renderAll()">Close Market</button>
+    </div>
+    <div><b>Simulation</b> (tick ${sim.tick})<br><br>
+      <button onclick="sim.start();renderAdmin()" ${sim.running?'disabled':''}>Start</button>
+      <button class="secondary" onclick="sim.stop();renderAdmin()" ${!sim.running?'disabled':''}>Stop</button>
+      <button onclick="doTick()">Advance Tick</button>
+    </div>
+  </div>
+  <div class="card event-log">${sim.lastEvent?`Last event: <b>${sim.lastEvent.type}</b> (impact x${sim.lastEvent.impact.toFixed(3)})`:'No ticks yet.'}${!sim.running?' — start the simulation to enable ticks.':''}</div>`;
+}
+
+function doTick(){
+  const ev=sim.advance();
+  if(!ev){alert('Simulation is not running. Start it first.');return;}
+  trader.checkAlerts(market,today());
+  renderAll();
+}
+
+function addAlert(){
+  const symbol=document.getElementById('al-symbol').value;
+  const above=document.getElementById('al-dir').value==='1';
+  const target=parseFloat(document.getElementById('al-target').value);
+  if(!target||target<=0){alert('Enter a valid target price.');return;}
+  trader.setAlert(symbol,target,above);
+  renderAlerts();
+}
+
+function markAllRead(){trader.notifications.forEach(n=>n.read=true);renderHeader();renderAlerts();}
+
+function openTrade(symbol,type){
+  const stock=market.find(symbol);
+  document.getElementById('modal-root').innerHTML=`
+  <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <b>${type} ${symbol}</b>
+      <p style="color:var(--sub);font-size:13px">Current price: ${rs(stock.price)}</p>
+      <label>Quantity</label><input id="trade-qty" type="number" min="1" value="1">
+      <div style="display:flex;gap:8px">
+        <button onclick="confirmTrade('${symbol}','${type}')" style="flex:1">Confirm</button>
+        <button class="secondary" onclick="closeModal()" style="flex:1">Cancel</button>
+      </div>
+    </div>
+  </div>`;
+}
+function closeModal(){document.getElementById('modal-root').innerHTML='';}
+function confirmTrade(symbol,type){
+  const qty=parseInt(document.getElementById('trade-qty').value);
+  const stock=market.find(symbol);
+  const result=type==='BUY'?trader.buy(stock,qty,today()):trader.sell(stock,qty,today());
+  closeModal();
+  if(!result.ok)alert('Order rejected: '+result.reason);
+  renderAll();
+}
+</script>
+</body>
+</html>
