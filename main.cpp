@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <cstdlib>
 #include <ctime>
+#include <sstream>
 using namespace std;
 
 // STOCK CLASS
@@ -464,6 +465,83 @@ public:
     }
 };
 
+// NOTIFICATION CLASS
+// A single message informing the trader about something relevant
+// (right now: a triggered price alert). Tracks whether it's been read.
+class Notification {
+private:
+    static int nextNotificationID;
+    int notificationID;
+    string message;
+    string createdAt;
+    bool read;
+
+public:
+    Notification(string msg, string timestamp)
+        : message(msg), createdAt(timestamp), read(false) {
+        notificationID = nextNotificationID++;
+    }
+
+    string getMessage() const { return message; }
+    bool isRead() const { return read; }
+    void markAsRead() { read = true; }
+
+    void displayNotification() const {
+        cout << left << setw(6) << notificationID
+             << setw(8) << (read ? "READ" : "UNREAD")
+             << setw(14) << createdAt
+             << message << endl;
+    }
+};
+int Notification::nextNotificationID = 1;
+
+// PRICE ALERT CLASS
+// Watches one stock for a target price. Fires exactly once, the
+// first time the price crosses that target, generating a Notification.
+class PriceAlert {
+private:
+    static int nextAlertID;
+    int alertID;
+    string symbol;
+    double targetPrice;
+    bool aboveTarget;   // true: trigger when price rises to/above target; false: falls to/below
+    bool triggered;
+
+public:
+    PriceAlert(string sym, double target, bool triggerWhenAbove)
+        : symbol(sym), targetPrice(target), aboveTarget(triggerWhenAbove), triggered(false) {
+        alertID = nextAlertID++;
+    }
+
+    string getSymbol() const { return symbol; }
+    bool isTriggered() const { return triggered; }
+
+    // Call with the stock's current price. Returns true only on the
+    // tick where the target is first reached (never re-fires after).
+    bool checkPrice(double currentPrice) {
+        if (triggered) return false;
+        bool reached = aboveTarget ? (currentPrice >= targetPrice) : (currentPrice <= targetPrice);
+        if (reached) { triggered = true; return true; }
+        return false;
+    }
+
+    Notification generateNotification(string date) const {
+        string direction = aboveTarget ? "risen to/above" : "fallen to/below";
+        ostringstream msg;
+        msg << symbol << " has " << direction << " Rs. " << fixed << setprecision(2) << targetPrice;
+        return Notification(msg.str(), date);
+    }
+
+    void displayAlert() const {
+        cout << left << setw(6) << alertID
+             << setw(10) << symbol
+             << (aboveTarget ? ">= " : "<= ")
+             << setw(12) << fixed << setprecision(2) << targetPrice
+             << (triggered ? "TRIGGERED" : "ACTIVE") << endl;
+    }
+};
+int PriceAlert::nextAlertID = 1;
+
 // TRADER CLASS (derived from User)
 //  User
 //    |
@@ -474,6 +552,8 @@ private:
     Account account;
     Portfolio portfolio;
     vector<Order> orderHistory;
+    vector<PriceAlert> alerts;
+    vector<Notification> notifications;
     static int traderCount;   // shared by all Traders
 
 public:
@@ -575,6 +655,55 @@ public:
              << setw(10) << "Symbol" << setw(10) << "Qty"
              << setw(16) << "Price" << "Status" << endl;
         for (const auto &o : orderHistory) o.displayOrder();
+    }
+
+    void setPriceAlert(string symbol, double targetPrice, bool triggerWhenAbove) {
+        alerts.push_back(PriceAlert(symbol, targetPrice, triggerWhenAbove));
+        cout << "\nPrice alert set: " << symbol
+             << (triggerWhenAbove ? " >= Rs. " : " <= Rs. ")
+             << fixed << setprecision(2) << targetPrice << endl;
+    }
+
+    // Checks every un-triggered alert against the market's current prices.
+    // Any alert that fires generates a Notification and prints it right away.
+    void checkAlerts(Market &market, string date) {
+        for (auto &alert : alerts) {
+            if (alert.isTriggered()) continue;
+            Stock *s = market.findStock(alert.getSymbol());
+            if (!s) continue;
+            if (alert.checkPrice(s->getPrice())) {
+                Notification note = alert.generateNotification(date);
+                cout << "\n[PRICE ALERT] " << note.getMessage() << endl;
+                notifications.push_back(note);
+            }
+        }
+    }
+
+    void displayAlerts() const {
+        if (alerts.empty()) {
+            cout << "\nNo price alerts set.\n";
+            return;
+        }
+        cout << "\nPRICE ALERTS\n";
+        cout << left << setw(6) << "ID" << setw(10) << "Symbol"
+             << setw(3) << "" << setw(12) << "Target" << "Status" << endl;
+        for (const auto &a : alerts) a.displayAlert();
+    }
+
+    void displayNotifications() const {
+        if (notifications.empty()) {
+            cout << "\nNo notifications.\n";
+            return;
+        }
+        cout << "\nNOTIFICATIONS\n";
+        cout << left << setw(6) << "ID" << setw(8) << "Status"
+             << setw(14) << "Date" << "Message" << endl;
+        for (const auto &n : notifications) n.displayNotification();
+    }
+
+    void markAllNotificationsRead() {
+        for (auto &n : notifications) n.markAsRead();
+        cout << "\nAll notifications marked as read.\n";
     }
 
     void displayBalance() const {
@@ -756,18 +885,22 @@ int main() {
         cout << "8. Verify Details\n";
         cout << "9. View Transaction History\n";
         cout << "10. View Order History\n";
-        cout << "11. Open Market (Admin)\n";
-        cout << "12. Close Market (Admin)\n";
-        cout << "13. Start Simulation (Admin)\n";
-        cout << "14. Stop Simulation (Admin)\n";
-        cout << "15. Advance Simulation Tick (Admin)\n";
-        cout << "16. Exit\n";
+        cout << "11. Set Price Alert\n";
+        cout << "12. View Price Alerts\n";
+        cout << "13. View Notifications\n";
+        cout << "14. Mark All Notifications Read\n";
+        cout << "15. Open Market (Admin)\n";
+        cout << "16. Close Market (Admin)\n";
+        cout << "17. Start Simulation (Admin)\n";
+        cout << "18. Stop Simulation (Admin)\n";
+        cout << "19. Advance Simulation Tick (Admin)\n";
+        cout << "20. Exit\n";
         cout << "\n";
         cout << "Enter your choice: ";
 
         int choice;
         if (!(cin >> choice)) {
-            cout << "\nInvalid input! Please enter a number from 1 to 16.\n";
+            cout << "\nInvalid input! Please enter a number from 1 to 20.\n";
             cin.clear();
             cin.ignore(10000, '\n');
             continue;
@@ -842,6 +975,7 @@ int main() {
                 string symbol = stocks[stockChoice - 1].getSymbol();
                 market.updateStockPrice(symbol, newPrice);
                 trader.updatePortfolioPrice(symbol, newPrice);
+                trader.checkAlerts(market, today);
                 break;
             }
 
@@ -881,37 +1015,76 @@ int main() {
                 trader.displayOrderHistory();
                 break;
 
-            case 11:
-                market.openMarket();
-                break;
-
-            case 12:
-                market.closeMarket();
-                break;
-
-            case 13:
-                simulation.start();
-                break;
-
-            case 14:
-                simulation.stop();
-                break;
-
-            case 15: {
-                simulation.advanceTick();
-                // Keep the trader's portfolio in sync with the new prices.
-                for (const auto &s : market.getAllStocks()) {
-                    trader.updatePortfolioPrice(s.getSymbol(), s.getPrice());
+            case 11: {
+                const vector<Stock> &stocks = market.getAllStocks();
+                cout << "\nSelect stock to watch:\n";
+                for (size_t i = 0; i < stocks.size(); i++) {
+                    cout << (i + 1) << ". " << stocks[i].getSymbol() << "\n";
                 }
+                int stockChoice;
+                cout << "Enter stock number: ";
+                if (!(cin >> stockChoice)) { cout << "Invalid input.\n"; cin.clear(); cin.ignore(10000, '\n'); break; }
+                if (stockChoice < 1 || stockChoice > (int)stocks.size()) { cout << "Invalid stock selection.\n"; break; }
+
+                int direction;
+                double targetPrice;
+                cout << "1. Alert when price rises to/above target\n";
+                cout << "2. Alert when price falls to/below target\n";
+                cout << "Choose: ";
+                if (!(cin >> direction)) { cout << "Invalid input.\n"; cin.clear(); cin.ignore(10000, '\n'); break; }
+                cout << "Enter target price: ";
+                if (!(cin >> targetPrice)) { cout << "Invalid price.\n"; cin.clear(); cin.ignore(10000, '\n'); break; }
+                if (targetPrice <= 0) { cout << "Price must be greater than 0.\n"; break; }
+
+                trader.setPriceAlert(stocks[stockChoice - 1].getSymbol(), targetPrice, direction == 1);
                 break;
             }
 
+            case 12:
+                trader.displayAlerts();
+                break;
+
+            case 13:
+                trader.displayNotifications();
+                break;
+
+            case 14:
+                trader.markAllNotificationsRead();
+                break;
+
+            case 15:
+                market.openMarket();
+                break;
+
             case 16:
+                market.closeMarket();
+                break;
+
+            case 17:
+                simulation.start();
+                break;
+
+            case 18:
+                simulation.stop();
+                break;
+
+            case 19: {
+                simulation.advanceTick();
+                // Keep the trader's portfolio in sync with the new prices,
+                // and see if any price alerts were just crossed.
+                for (const auto &s : market.getAllStocks()) {
+                    trader.updatePortfolioPrice(s.getSymbol(), s.getPrice());
+                }
+                trader.checkAlerts(market, today);
+                break;
+            }
+
+            case 20:
                 cout << "\nThank you for using the Virtual Stock Market Simulator!\n";
                 return 0;
 
             default:
-                cout << "\nInvalid choice! Please select between 1 and 16.\n";
+                cout << "\nInvalid choice! Please select between 1 and 20.\n";
         }
     }
 
