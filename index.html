@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PaperTrade: Stock Market Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#eef1f6;--panel:#fff;--ink:#16213a;--mute:#6b7690;--line:#dde3ee;--accent:#3b4cca;--up:#0f9d58;--dn:#d93025}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "IBM Plex Sans",system-ui,sans-serif;font-variant-numeric:tabular-nums}
+header{background:var(--ink);color:#fff;padding:14px 24px;display:flex;flex-wrap:wrap;gap:18px 40px;align-items:center}
+header h1{font-size:20px;margin:0;font-weight:700;letter-spacing:-.01em}
+.stat small{display:block;color:#9aa6c4;font-size:12px}.stat b{font-size:19px;font-weight:600}
+.spacer{flex:1}
+.tape{background:#e1e6f2;padding:7px 24px;font-size:13px;color:var(--mute);display:flex;gap:10px;align-items:center}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--up)}.dot.off{background:#9aa3b8}
+main{display:grid;grid-template-columns:270px minmax(0,1fr) 340px;gap:16px;padding:16px 24px}
+@media(max-width:1050px){main{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:16px}
+h2{font-size:14px;margin:0 0 10px;color:var(--mute);font-weight:600}
+.row{display:flex;justify-content:space-between;padding:9px 8px;border-radius:7px;cursor:pointer;border-left:3px solid transparent}
+.row:hover{background:#f4f6fb}.row.on{background:#eaedfb;border-left-color:var(--accent)}
+.row small{display:block;color:var(--mute);font-size:12px}.r{text-align:right}
+.up{color:var(--up)}.dn{color:var(--dn)}
+.big{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}.big h3{margin:0;font-size:38px;letter-spacing:-.02em}
+.big span{color:var(--mute)}
+.chartbox{height:330px;margin-top:8px}
+.ticket{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+label{font-size:12px;color:var(--mute);display:block;margin-bottom:3px}
+input{width:110px;padding:9px;border:1px solid var(--line);border-radius:7px;font:inherit}
+button{padding:9px 16px;border:0;border-radius:7px;font:inherit;font-weight:600;cursor:pointer;color:#fff;background:var(--accent)}
+button.buy{background:var(--up)}button.sell{background:var(--dn)}button.ghost{background:#e6e9f3;color:var(--ink)}
+button:focus-visible,input:focus-visible,.row:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;color:var(--mute);font-weight:500;padding:4px 0}
+td{padding:6px 0;border-top:1px solid var(--line)}td:last-child,th:last-child{text-align:right}
+.empty{color:var(--mute);font-size:13px;padding:6px 0}
+.note{background:#fff6dd;border-radius:7px;padding:7px 10px;font-size:13px;margin-bottom:6px}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none}
+#toast.show{opacity:1}
+[hidden]{display:none!important}
+#login{position:fixed;inset:0;background:rgba(22,33,58,.94);display:flex;align-items:center;justify-content:center;z-index:5}
+#login .box{background:#fff;padding:26px;border-radius:12px;width:min(92vw,370px)}
+#login h2{font-size:22px;color:var(--ink);margin:0 0 4px}#login p{margin:0 0 16px;color:var(--mute)}
+#login input{width:100%;margin-bottom:10px}#login .btns{display:flex;gap:10px}#lerr{color:var(--dn);font-size:13px;min-height:18px}
+.lb{display:flex;justify-content:space-between;padding:4px 0;font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <h1>PaperTrade</h1>
+  <div class="stat"><small>Cash</small><b id="cash">-</b></div>
+  <div class="stat"><small>Holdings</small><b id="hv">-</b></div>
+  <div class="stat"><small>Net worth</small><b id="total">-</b></div>
+  <div class="stat"><small>Profit / loss</small><b id="pnl">-</b></div>
+  <div class="spacer"></div>
+  <span id="adm" hidden>
+    <button class="ghost" onclick="admin('start')">Start</button>
+    <button class="ghost" onclick="admin('stop')">Pause</button>
+    <button class="ghost" onclick="if(confirm('Reset the market and every trader?'))admin('reset')">Reset</button>
+  </span>
+  <span id="who"></span>
+  <button class="ghost" onclick="logout()">Log out</button>
+</header>
+<div class="tape"><span class="dot" id="dot"></span><span id="event">Connecting to the C++ server...</span></div>
+<main>
+  <section>
+    <div class="panel"><h2>Watchlist</h2><div id="list"></div></div>
+  </section>
+  <section>
+    <div class="panel">
+      <div class="big"><h3 id="price">-</h3><b id="chg"></b><span id="name"></span></div>
+      <div class="chartbox"><canvas id="chart"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>Trade <span id="sel"></span></h2>
+      <div class="ticket">
+        <div><label for="qty">Quantity</label><input id="qty" type="number" min="1" value="10"></div>
+        <button class="buy" onclick="order('BUY')">Buy</button>
+        <button class="sell" onclick="order('SELL')">Sell</button>
+        <div style="margin-left:auto"><label for="ap">Alert me at (₹)</label><input id="ap" type="number" min="1" step="0.01"></div>
+        <button onclick="alertSet()">Set alert</button>
+      </div>
+    </div>
+  </section>
+  <section>
+    <div class="panel"><h2>Leaderboard</h2><div id="lb"></div></div>
+    <div class="panel"><h2>Notifications</h2><div id="notes"></div></div>
+    <div class="panel"><h2>Your holdings</h2><div id="holds"></div></div>
+    <div class="panel"><h2>Price alerts</h2><div id="alerts"></div></div>
+    <div class="panel"><h2>Recent transactions</h2><div id="txns"></div></div>
+  </section>
+</main>
+<div id="login" hidden><div class="box">
+  <h2>PaperTrade</h2><p>Practice trading with ₹1,00,000 of virtual cash.</p>
+  <label for="un">Username</label><input id="un" autocomplete="username">
+  <label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password">
+  <div id="lerr"></div>
+  <div class="btns"><button onclick="auth('login')">Log in</button><button class="ghost" onclick="auth('register')">Create account</button></div>
+</div></div>
+<div id="toast" role="status"></div>
+<script>
+let S=null,sel='RELIANCE',chart=null;
+const $=id=>document.getElementById(id);
+const f=n=>Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+let tok=localStorage.getItem('pt')||'';
+const api=async p=>(await fetch(p+(p.includes('?')?'&':'?')+'token='+encodeURIComponent(tok))).json();
+async function auth(kind){
+  const n=encodeURIComponent($('un').value.trim()),p=encodeURIComponent($('pw').value);
+  const r=await(await fetch(`/api/${kind}?name=${n}&pass=${p}`)).json();
+  if(r.ok){tok=r.token;localStorage.setItem('pt',tok);$('lerr').textContent='';$('pw').value='';$('login').hidden=true;load()}else $('lerr').textContent=r.msg}
+function logout(){localStorage.removeItem('pt');tok='';$('login').hidden=false}
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
+async function order(side){const r=await api(`/api/order?side=${side}&symbol=${sel}&qty=${$('qty').value}`);toast(r.msg);load()}
+async function alertSet(){const r=await api(`/api/alert?symbol=${sel}&price=${$('ap').value}`);toast(r.msg);load()}
+async function admin(c){const r=await api('/api/admin?cmd='+c);toast(r.msg);load()}
+function pick(s){sel=s;render()}
+async function load(){try{const r=await api('/api/state');if(r.ok===false){$('login').hidden=false;return}S=r;$('login').hidden=true;render()}catch(e){$('event').textContent='Cannot reach the C++ server. Run ./simulator first.'}}
+function render(){
+  const pl=S.pnl>=0;
+  $('who').textContent='Hi, '+S.me;$('adm').hidden=!S.admin;
+  $('lb').innerHTML=S.leaderboard.map((l,i)=>`<div class="lb"><span>${i+1}. ${l.name}</span><b>₹${f(l.total)}</b></div>`).join('')||'<div class="empty">No traders yet.</div>';
+  $('cash').textContent='₹'+f(S.cash);$('hv').textContent='₹'+f(S.holdingsValue);$('total').textContent='₹'+f(S.total);
+  $('pnl').textContent=(pl?'+':'-')+'₹'+f(Math.abs(S.pnl));$('pnl').style.color=pl?'#6ee7a0':'#ff9b94';
+  $('event').textContent=(S.running?'Live: ':'Paused: ')+S.event;$('dot').className='dot'+(S.running?'':' off');
+  $('list').innerHTML=S.stocks.map(s=>{const d=s.price-s.prev;return `<div class="row ${s.symbol==sel?'on':''}" tabindex="0" onclick="pick('${s.symbol}')" onkeydown="if(event.key==='Enter')pick('${s.symbol}')"><div><b>${s.symbol}</b><small>${s.name}</small></div><div class="r"><b>₹${f(s.price)}</b><small class="${d>=0?'up':'dn'}">${d>=0?'▲':'▼'} ${f(Math.abs(d/s.prev*100))}%</small></div></div>`}).join('');
+  const s=S.stocks.find(x=>x.symbol==sel),first=s.history[0],ch=s.price-first,up=ch>=0;
+  $('price').textContent='₹'+f(s.price);$('name').textContent=s.name;$('sel').textContent='· '+s.symbol;
+  $('chg').textContent=(up?'+':'-')+f(Math.abs(ch))+' ('+f(Math.abs(ch/first*100))+'%) this session';$('chg').className=up?'up':'dn';
+  const c=up?'#0f9d58':'#d93025';
+  if(!chart)chart=new Chart($('chart'),{type:'line',data:{labels:[],datasets:[{data:[],fill:true,tension:.3,pointRadius:0,borderWidth:2.5}]},
+    options:{animation:false,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:x=>'₹'+f(x.parsed.y)}}},scales:{x:{display:false},y:{grid:{color:'#e6eaf3'},ticks:{color:'#6b7690',callback:v=>'₹'+v}}}}});
+  const d=chart.data.datasets[0];chart.data.labels=s.history.map((_,i)=>i);d.data=s.history;d.borderColor=c;d.backgroundColor=c+'1f';chart.update();
+  $('notes').innerHTML=S.notifications.map(n=>`<div class="note">${n}</div>`).join('')||'<div class="empty">No alerts have fired yet.</div>';
+  $('holds').innerHTML=S.holdings.length?`<table><tr><th>Stock</th><th>Qty</th><th>Avg</th><th>Value</th></tr>${S.holdings.map(h=>`<tr><td>${h.symbol}</td><td>${h.qty}</td><td>${f(h.avg)}</td><td>₹${f(h.value)}</td></tr>`).join('')}</table>`:'<div class="empty">Buy your first stock to start building a portfolio.</div>';
+  $('alerts').innerHTML=S.alerts.map(a=>`<div class="empty">${a.symbol} at ₹${f(a.target)} ${a.triggered?'(triggered)':'(waiting)'}</div>`).join('')||'<div class="empty">Pick a stock and set a target price.</div>';
+  $('txns').innerHTML=S.transactions.length?`<table><tr><th>Time</th><th>Trade</th><th>Price</th></tr>${S.transactions.map(t=>`<tr><td>${t.time}</td><td class="${t.type=='BUY'?'up':'dn'}">${t.type} ${t.qty} ${t.symbol}</td><td>${f(t.price)}</td></tr>`).join('')}</table>`:'<div class="empty">No trades yet.</div>';
+}
+load();setInterval(load,2000);
+</script>
+</body>
+</html>
