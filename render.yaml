@@ -3,3 +3,9 @@ services:
     name: papertrade
     runtime: docker
     plan: free
+    autoDeploy: true
+    envVars:
+      - key: INDIAN_API_KEY
+        sync: false
+      - key: ADMIN_PASS
+        sync: false

@@ -18,6 +18,8 @@
 #include <csignal>
 #include <algorithm>
 #include <cstdlib>
+#include <curl/curl.h>
+#include <nlohmann/json.hpp>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
@@ -29,6 +31,96 @@ double uni() { return uniform_real_distribution<double>(0, 1)(rng); }
 double randn() { return normal_distribution<double>(0, 1)(rng); }
 string nowStr() { time_t t = ::time(nullptr); char b[16]; strftime(b, sizeof b, "%H:%M:%S", localtime(&t)); return b; }
 }
+
+
+// ---------- MarketDataProvider: IndianAPI integration ----------
+
+class MarketDataProvider {
+    string apiKey;
+
+    static size_t writeCallback(void* contents, size_t size,
+                                size_t nmemb, string* output) {
+        size_t total = size * nmemb;
+        output->append(static_cast<char*>(contents), total);
+        return total;
+    }
+
+public:
+    MarketDataProvider() {
+        const char* key = getenv("INDIAN_API_KEY");
+        if (key) apiKey = key;
+        curl_global_init(CURL_GLOBAL_DEFAULT);
+    }
+
+    ~MarketDataProvider() {
+        curl_global_cleanup();
+    }
+
+    bool fetchNSEPrice(const string& companyName, double& price) {
+        if (apiKey.empty()) return false;
+
+        CURL* curl = curl_easy_init();
+        if (!curl) return false;
+
+        string response;
+        char* escapedName = curl_easy_escape(
+            curl, companyName.c_str(), 0
+        );
+
+        if (!escapedName) {
+            curl_easy_cleanup(curl);
+            return false;
+        }
+
+        string url = "https://stock.indianapi.in/stock?name=";
+        url += escapedName;
+        curl_free(escapedName);
+
+        struct curl_slist* headers = nullptr;
+        string apiHeader = "X-Api-Key: " + apiKey;
+        headers = curl_slist_append(headers, apiHeader.c_str());
+
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 20L);
+
+        CURLcode result = curl_easy_perform(curl);
+
+        long statusCode = 0;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &statusCode);
+
+        bool success = false;
+
+        if (result == CURLE_OK && statusCode == 200) {
+            try {
+                auto data = nlohmann::json::parse(response);
+                auto value = data.at("currentPrice").at("NSE");
+
+                double fetchedPrice;
+
+                if (value.is_string())
+                    fetchedPrice = stod(value.get<string>());
+                else
+                    fetchedPrice = value.get<double>();
+
+                if (fetchedPrice > 0) {
+                    price = fetchedPrice;
+                    success = true;
+                }
+            }
+            catch (const exception&) {
+                success = false;
+            }
+        }
+
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
+
+        return success;
+    }
+};
 
 // ---------- Templates: fixed-size price history for any type ----------
 template <typename T, size_t N = 60>
@@ -84,7 +176,7 @@ class Market {
     string lastEvent = "Market is calm";
 public:
     Market() {
-        add("RELIANCE", "Reliance Industries", 2500); add("TCS", "Tata Consultancy", 3900);
+        add("RELIANCE", "Reliance Industries", 2500); add("TCS", "Tata Consultancy Services", 3900);
         add("INFY", "Infosys", 1500); add("HDFCBANK", "HDFC Bank", 1650);
         add("ITC", "ITC Limited", 430); add("TATAMOTORS", "Tata Motors", 950);
     }
@@ -92,6 +184,24 @@ public:
     Stock* get(const string& s) { for (auto& x : stocks) if (x->getSymbol() == s) return x.get(); return nullptr; }
     const vector<unique_ptr<Stock>>& all() const { return stocks; }
     const string& event() const { return lastEvent; }
+
+    int refreshFromAPI(MarketDataProvider& provider) {
+        int updated = 0;
+
+        for (auto& stock : stocks) {
+            double fetchedPrice = 0;
+
+            if (provider.fetchNSEPrice(stock->getName(), fetchedPrice)) {
+                stock->updatePrice(fetchedPrice);
+                updated++;
+            }
+        }
+
+        if (updated > 0)
+            lastEvent = "Prices updated from IndianAPI";
+
+        return updated;
+    }
     void tick() {                                  // simulation clock step
         unique_ptr<MarketEvent> ev;                // base-class pointer -> dynamic binding
         double r = util::uni();
@@ -257,10 +367,58 @@ class Simulator {
 public:
     Simulator() : csv("transactions.csv", ios::app) {
         worker = thread([this] {
+            MarketDataProvider provider;
+
+            const vector<pair<string, string>> companies = {
+                {"RELIANCE", "Reliance Industries"},
+                {"TCS", "Tata Consultancy Services"},
+                {"INFY", "Infosys"},
+                {"HDFCBANK", "HDFC Bank"},
+                {"ITC", "ITC Limited"},
+                {"TATAMOTORS", "Tata Motors"}
+            };
+
+            bool apiMode = false;
+            auto nextRefresh = chrono::steady_clock::now();
+
             while (alive) {
-                this_thread::sleep_for(chrono::seconds(2));          // tick interval
+                this_thread::sleep_for(chrono::seconds(2));
                 if (!running) continue;
-                lock_guard<mutex> g(mu); market.tick(); checkAlerts();
+
+                if (chrono::steady_clock::now() >= nextRefresh) {
+                    nextRefresh = chrono::steady_clock::now()
+                                + chrono::seconds(60);
+
+                    vector<pair<string, double>> fetchedPrices;
+
+                    for (const auto& company : companies) {
+                        double price = 0;
+
+                        if (provider.fetchNSEPrice(company.second, price)) {
+                            fetchedPrices.push_back({company.first, price});
+                        }
+                    }
+
+                    lock_guard<mutex> g(mu);
+
+                    for (const auto& item : fetchedPrices) {
+                        Stock* stock = market.get(item.first);
+                        if (stock) stock->updatePrice(item.second);
+                    }
+
+                    apiMode = !fetchedPrices.empty();
+
+                    if (!apiMode) market.tick();
+
+                    checkAlerts();
+                }
+                else {
+                    lock_guard<mutex> g(mu);
+
+                    if (!apiMode) market.tick();
+
+                    checkAlerts();
+                }
             }
         });
     }

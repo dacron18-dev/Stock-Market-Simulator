@@ -1,0 +1,19 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Compiled programs
+simulator
+api_test
+
+# Temporary tests and backups
+api_test.cpp
+main_backup.cpp
+main_before_worker.cpp
+
+# User data
+transactions.csv
+
+# System files
+.DS_Store

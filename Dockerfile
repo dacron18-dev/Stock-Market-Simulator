@@ -1,10 +1,29 @@
-FROM gcc:13 AS build
-WORKDIR /app
-COPY main.cpp .
-RUN g++ -O2 -std=c++17 -pthread main.cpp -o simulator
+FROM gcc:13-bookworm AS build
 
-FROM debian:stable-slim
 WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libcurl4-openssl-dev \
+    nlohmann-json3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY main.cpp .
+
+RUN g++ -O2 -std=c++17 -pthread main.cpp \
+    -I/usr/include \
+    -L/usr/lib/x86_64-linux-gnu \
+    -lcurl \
+    -o simulator
+
+FROM debian:bookworm-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libcurl4 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/simulator .
 COPY index.html .
+
 CMD ["./simulator"]
