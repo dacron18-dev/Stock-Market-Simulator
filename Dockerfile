@@ -9,13 +9,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY main.cpp .
 
-RUN g++ -O2 -std=c++17 -pthread main.cpp \
-    -I/usr/include \
-    -L/usr/lib/x86_64-linux-gnu \
-    -lcurl \
-    -o simulator
+RUN g++ -O2 -std=c++17 -pthread main.cpp -lcurl -o simulator
 
-FROM debian:bookworm-slim
+FROM gcc:13-bookworm
 
 WORKDIR /app
 
